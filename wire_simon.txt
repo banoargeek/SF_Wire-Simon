@@ -1,0 +1,79 @@
+--@name Wire Simon
+--@author Major#3577
+
+--@model models/cheeze/wires/speaker.mdl
+--@server
+
+wirelinks = wire.adjustPorts( --Normally I don't do Pascal Case, but Wirelinks mandate that.
+{ ButtonGreen = "Number", ButtonRed= "Number", ButtonYellow= "Number", ButtonBlue= "Number" },
+{ LightGreen = "Vector", LightRed = "Vector", LightYellow = "Vector", LightBlue = "Vector" }
+)
+
+local compData = {
+    LightGreen = { onValue = Vector( 131, 255, 131 ), soundPitch = 80, isOn = false },
+    LightRed = { onValue = Vector( 255, 131, 131 ), soundPitch = 100, isOn = false },
+    LightYellow = { onValue = Vector( 255, 255, 131 ), soundPitch = 120, isOn = false },
+    LightBlue = { onValue = Vector( 131, 131, 255 ), soundPitch = 140, isOn = false }
+}
+
+snd = sounds.create( chip(), "buttons/button17.wav" )
+
+local canRegister = true
+local gameIsRunning = false
+
+local function updateLight( lgt, state )
+    if state then
+        wire.ports[lgt] = compData[lgt].onValue
+        compData[lgt].isOn = true
+        snd:play()
+        snd:setPitch( compData[lgt].soundPitch )
+        timer.simple( 1, function()
+            if state then updateLight( lgt, false ) end  -- This prevents the button from staying on if we call it from 'Simon' not the player.
+        end )
+    else
+        wire.ports[lgt] = Vector(0)
+        compData[lgt].isOn = false
+        snd:stop()
+    end
+end
+
+local randTbl = table.getKeys( compData )
+
+local function getRandomLight()
+    local randLight = randTbl[math.random( 1, #randTbl )]
+
+    return randLight
+end
+
+local sequence = {}
+local function simon()
+    canRegister = false
+
+    local rand = getRandomLight()
+    table.insert( sequence, rand )
+
+    local copy = table.copy( sequence )
+
+    timer.create( "SF_Simon", 2, #sequence, function()
+        updateLight( copy[1], true )
+        table.remove( copy, 1 )
+    end )
+
+    canRegister = true
+end
+
+hook.add( "Input", "SF_Simon_Input", function( inp, val )
+    if not canRegister then return end -- If the sequence is playing, no button presses will be registered.
+
+    local curLight = string.format( "Light%s", string.sub( inp, 7 ) )
+    print( string.format( "DBG: %s is %i.", curLight, val ) )
+
+    if val == 1 then
+        updateLight( curLight, true )
+        timer.simple( 3, simon )
+    elseif val == 0 then
+        updateLight( curLight, false )
+    end
+end )
+
+timer.simple( 2, simon )
